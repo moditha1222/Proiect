@@ -1,11 +1,15 @@
 /**
- * Express Application configuration for ALLIN
+ * Express Application configuration for ALLIN Backend Engine
+ * Configured for standalone Node.js deployment on Render and seamless CORS with Vercel frontend.
  */
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
+const db = require('./database/db');
 const workersRouter = require('./routes/workers');
 const routeRouter = require('./routes/route');
 const compareRouter = require('./routes/compare');
@@ -15,31 +19,98 @@ const { SKILLS } = require('./services/seedService');
 
 const app = express();
 
-// Configurable CORS origins
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map((url) => url.trim())
-  : ['http://localhost:5173', 'http://localhost:3000'];
+// ----------------------------------------------------
+// CORS Configuration for Production Vercel & Dev
+// ----------------------------------------------------
+const clientUrlEnv = process.env.CLIENT_URL || '';
+const configuredOrigins = clientUrlEnv
+  ? clientUrlEnv.split(',').map((u) => u.trim().replace(/\/+$/, ''))
+  : [];
+
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+];
+
+const allowedOriginsSet = new Set([...defaultOrigins, ...configuredOrigins]);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. curl, health checks, server-to-server)
-      if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (e.g. mobile apps, curl, Render health checks, server-to-server)
+      if (!origin) {
         return callback(null, true);
       }
+
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+
+      // Allow wildcard or exact configured match
+      if (
+        allowedOriginsSet.has('*') ||
+        allowedOriginsSet.has(normalizedOrigin) ||
+        configuredOrigins.includes('*')
+      ) {
+        return callback(null, true);
+      }
+
+      // Automatically permit production Vercel frontend and preview branch URLs (*.vercel.app)
+      if (
+        normalizedOrigin.endsWith('.vercel.app') ||
+        configuredOrigins.some((pattern) => {
+          if (pattern.includes('*')) {
+            const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+            return regex.test(normalizedOrigin);
+          }
+          return false;
+        })
+      ) {
+        return callback(null, true);
+      }
+
+      // Permissive fallback in development or allow with header
+      if (process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+
       return callback(null, true);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// ----------------------------------------------------
+// Health Check Endpoint (Render & Monitoring)
+// ----------------------------------------------------
 app.get('/api/health', (req, res) => {
+  let workersCount = 0;
+  let dbStatus = 'disconnected';
+
+  try {
+    const row = db.prepare('SELECT COUNT(*) as count FROM workers').get();
+    workersCount = row ? row.count : 0;
+    dbStatus = 'connected';
+  } catch (err) {
+    dbStatus = `error: ${err.message}`;
+  }
+
   res.json({
     status: 'ok',
-    service: 'ALLIN Engine',
+    service: 'ALLIN Nearest Worker Search & ETA Engine',
+    uptimeSeconds: Math.floor(process.uptime()),
+    database: {
+      status: dbStatus,
+      totalWorkers: workersCount,
+      storagePath: db.dbPath || 'configured',
+    },
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
   });
 });
@@ -55,16 +126,18 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// ----------------------------------------------------
 // API Routes
+// ----------------------------------------------------
 app.use('/api/workers', workersRouter);
 app.use('/api/route', routeRouter);
 app.use('/api/compare', compareRouter);
 app.use('/api/seed', seedRouter);
 app.use('/api/benchmark', benchmarkRouter);
 
-// Serve static frontend build if present
-const path = require('path');
-const fs = require('fs');
+// ----------------------------------------------------
+// Static Assets (if full-stack deployment)
+// ----------------------------------------------------
 const clientDist = path.join(__dirname, '../client/dist');
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
@@ -76,21 +149,44 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
-// 404 Handler for API
+// ----------------------------------------------------
+// 404 Handler for API & Standalone Backend
+// ----------------------------------------------------
 app.use('/api', (req, res) => {
   res.status(404).json({
     success: false,
-    error: `Not Found: ${req.method} ${req.originalUrl}`,
+    error: `API Route Not Found: ${req.method} ${req.originalUrl}`,
   });
 });
 
-// Global Error Handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    service: 'ALLIN Backend API',
+    error: `Not Found: ${req.method} ${req.originalUrl}`,
+    availableEndpoints: [
+      'GET /api/health',
+      'GET /api/config',
+      'GET /api/workers',
+      'GET /api/workers/nearest',
+      'GET /api/route',
+      'GET /api/route/compare',
+      'GET /api/compare',
+      'POST /api/seed',
+      'GET /api/benchmark',
+    ],
+  });
+});
+
+// ----------------------------------------------------
+// Global 500 Error Handler
+// ----------------------------------------------------
 app.use((err, req, res, next) => {
-  console.error('Unhandled server error:', err);
+  console.error('Unhandled Server Error:', err);
   res.status(500).json({
     success: false,
     error: 'Internal Server Error',
-    message: err.message,
+    message: process.env.NODE_ENV === 'production' ? 'An unexpected server error occurred.' : err.message,
   });
 });
 
