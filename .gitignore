@@ -1,0 +1,57 @@
+# ==========================================
+# ALLIN – Production .gitignore
+# ==========================================
+
+# Dependencies
+node_modules/
+client/node_modules/
+.pnp
+.pnp.js
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+client/.env
+client/.env.local
+
+# SQLite Database Files & Write-Ahead Logs
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+server/database/*.db*
+server/database/*.sqlite*
+
+# Build Outputs
+dist/
+client/dist/
+dist-ssr/
+build/
+
+# Logs & Diagnostics
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test Coverage & Cache
+coverage/
+.nyc_output/
+.vitest/
+
+# OS and Editor Artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

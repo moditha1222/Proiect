@@ -1,0 +1,38 @@
+{
+  "name": "allin-nearest-worker-engine",
+  "version": "1.0.0",
+  "description": "ALLIN – Nearest Worker Search & ETA Engine",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run server\" \"npm run client\"",
+    "build": "npm --prefix client run build",
+    "test": "vitest run",
+    "postinstall": "npm --prefix client install"
+  },
+  "keywords": [
+    "nearest-worker",
+    "kd-tree",
+    "geohash",
+    "dijkstra",
+    "astar",
+    "home-services",
+    "routing"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "playwright": "^1.65.0",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.2"
+  }
+}
