@@ -1,9 +1,15 @@
 /**
  * Centralized API service for ALLIN client
+ * Configured for standalone Vercel frontend communication with Render backend.
  */
 
-// Configurable API base for production deployment
-const rawApiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+// Configurable API base supporting VITE_API_BASE_URL (Render backend URL)
+const rawApiUrl = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  ''
+).trim().replace(/\/+$/, '');
+
 const API_BASE = rawApiUrl
   ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`)
   : '/api';
@@ -104,4 +110,3 @@ export async function fetchBenchmark(sizes = [100, 1000, 10000, 50000], queries 
   const res = await fetch(`${API_BASE}/benchmark?${params.toString()}`);
   return handleResponse(res);
 }
-
